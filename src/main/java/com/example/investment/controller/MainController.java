@@ -114,8 +114,57 @@ public class MainController {
 
     @FXML
     public void onAddAsset() {
-        // TODO: диалог добавления (следующая ветка)
-        statusLabel.setText("Добавление... (будет реализовано)");
+        // Dialog<Asset> — встроенный JavaFX диалог с результатом нужного типа
+        Dialog<Asset> dialog = new Dialog<>();
+        dialog.setTitle("Добавить актив");
+        dialog.setHeaderText("Введите данные нового актива");
+
+        // Кнопки
+        ButtonType addButton = new ButtonType("Добавить", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(addButton, ButtonType.CANCEL);
+
+        // Форма ввода — сетка из меток и полей
+        javafx.scene.layout.GridPane grid = new javafx.scene.layout.GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new javafx.geometry.Insets(20));
+
+        TextField fName         = new TextField(); fName.setPromptText("Сбербанк");
+        TextField fTicker       = new TextField(); fTicker.setPromptText("SBER");
+        TextField fQuantity     = new TextField(); fQuantity.setPromptText("100");
+        TextField fBuyPrice     = new TextField(); fBuyPrice.setPromptText("250.00");
+        TextField fCurrentPrice = new TextField(); fCurrentPrice.setPromptText("310.50");
+
+        grid.addRow(0, new Label("Название:"),    fName);
+        grid.addRow(1, new Label("Тикер:"),        fTicker);
+        grid.addRow(2, new Label("Количество:"),   fQuantity);
+        grid.addRow(3, new Label("Цена покупки:"), fBuyPrice);
+        grid.addRow(4, new Label("Тек. цена:"),    fCurrentPrice);
+
+        dialog.getDialogPane().setContent(grid);
+
+        // ResultConverter: преобразует нажатую кнопку в объект Asset (или null)
+        dialog.setResultConverter(btn -> {
+            if (btn != addButton) return null;
+            try {
+                return new Asset(
+                        fName.getText().trim(),
+                        fTicker.getText().trim().toUpperCase(),
+                        Double.parseDouble(fQuantity.getText()),
+                        Double.parseDouble(fBuyPrice.getText()),
+                        Double.parseDouble(fCurrentPrice.getText())
+                );
+            } catch (NumberFormatException e) {
+                return null; // некорректный ввод — игнорируем
+            }
+        });
+
+        // showAndWait() блокирует поток UI до закрытия диалога
+        dialog.showAndWait().ifPresent(asset -> {
+            assets.add(asset);
+            updateTotal();
+            statusLabel.setText("Добавлен: " + asset.getName());
+        });
     }
 
     @FXML
