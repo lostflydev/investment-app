@@ -4,6 +4,7 @@ import com.example.investment.model.Asset;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
+import com.example.investment.service.PriceSimulator;
 import javafx.collections.ListChangeListener;
 import javafx.scene.chart.PieChart;
 import javafx.scene.control.*;
@@ -34,7 +35,8 @@ public class MainController {
     @FXML private PieChart pieChart;
 
     // ObservableList — "умный" список: TableView слушает его изменения
-    private final ObservableList<Asset> assets = FXCollections.observableArrayList();
+    private final ObservableList<Asset> assets    = FXCollections.observableArrayList();
+    private final PriceSimulator        simulator = new PriceSimulator();
 
     @FXML
     public void initialize() {
@@ -188,6 +190,24 @@ public class MainController {
             updatePieChart();
             statusLabel.setText("Добавлен: " + asset.getName());
         });
+    }
+
+    @FXML
+    public void onSimulatePrices() {
+        if (assets.isEmpty()) {
+            statusLabel.setText("Нет активов для симуляции");
+            return;
+        }
+        int gainers = simulator.simulate(assets);
+        // TableView не знает что данные изменились (мы меняли через setCurrentPrice)
+        // refresh() принудительно перерисовывает все ячейки
+        assetsTable.refresh();
+        updateTotal();
+        updatePieChart();
+        statusLabel.setText(String.format(
+                "Обновлено: %d выросло, %d упало",
+                gainers, assets.size() - gainers
+        ));
     }
 
     @FXML
