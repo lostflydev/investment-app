@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
+<?import javafx.scene.chart.*?>
 <?import javafx.geometry.Insets?>
 
 <BorderPane xmlns="http://javafx.com/javafx"
@@ -20,25 +21,30 @@
         </HBox>
     </top>
 
-    <!-- Таблица активов -->
+    <!-- Центральная область: таблица слева + диаграмма справа -->
     <center>
-        <TableView fx:id="assetsTable"
-                   style="-fx-background-color: #1e1e2e; -fx-table-cell-border-color: #313244;"
-                   BorderPane.margin="$padding">
-            <columns>
-                <TableColumn fx:id="colName"         text="Название"        prefWidth="140"/>
-                <TableColumn fx:id="colTicker"       text="Тикер"           prefWidth="80"/>
-                <TableColumn fx:id="colQuantity"     text="Кол-во"          prefWidth="80"/>
-                <TableColumn fx:id="colBuyPrice"     text="Цена покупки"    prefWidth="110"/>
-                <TableColumn fx:id="colCurrentPrice" text="Текущая цена"    prefWidth="110"/>
-                <TableColumn fx:id="colValue"        text="Стоимость"       prefWidth="110"/>
-                <TableColumn fx:id="colGain"         text="Прибыль ₽"       prefWidth="100"/>
-                <TableColumn fx:id="colGainPercent"  text="Прибыль %"       prefWidth="100"/>
-            </columns>
-            <BorderPane.margin>
-                <Insets top="10" right="10" bottom="10" left="10"/>
-            </BorderPane.margin>
-        </TableView>
+        <SplitPane dividerPositions="0.65" style="-fx-background-color: #1e1e2e;">
+            <!-- Таблица активов -->
+            <TableView fx:id="assetsTable"
+                       style="-fx-background-color: #1e1e2e; -fx-table-cell-border-color: #313244;">
+                <columns>
+                    <TableColumn fx:id="colName"         text="Название"      prefWidth="130"/>
+                    <TableColumn fx:id="colTicker"       text="Тикер"         prefWidth="70"/>
+                    <TableColumn fx:id="colQuantity"     text="Кол-во"        prefWidth="70"/>
+                    <TableColumn fx:id="colBuyPrice"     text="Цена покупки"  prefWidth="100"/>
+                    <TableColumn fx:id="colCurrentPrice" text="Тек. цена"     prefWidth="100"/>
+                    <TableColumn fx:id="colValue"        text="Стоимость"     prefWidth="100"/>
+                    <TableColumn fx:id="colGain"         text="Прибыль"       prefWidth="90"/>
+                    <TableColumn fx:id="colGainPercent"  text="%"             prefWidth="70"/>
+                </columns>
+                <padding><Insets top="4"/></padding>
+            </TableView>
+
+            <!-- PieChart: доля каждого актива в портфеле -->
+            <PieChart fx:id="pieChart"
+                      title="Распределение портфеля"
+                      style="-fx-background-color: #1e1e2e; -fx-text-fill: #cdd6f4;"/>
+        </SplitPane>
     </center>
 
     <!-- Нижняя панель: кнопки и статус -->

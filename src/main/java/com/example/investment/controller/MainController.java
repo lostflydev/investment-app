@@ -4,6 +4,8 @@ import com.example.investment.model.Asset;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
+import javafx.collections.ListChangeListener;
+import javafx.scene.chart.PieChart;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
 
@@ -27,8 +29,9 @@ public class MainController {
     @FXML private TableColumn<Asset, Double>  colValue;
     @FXML private TableColumn<Asset, Double>  colGain;
     @FXML private TableColumn<Asset, Double>  colGainPercent;
-    @FXML private Label statusLabel;
-    @FXML private Label totalLabel;
+    @FXML private Label    statusLabel;
+    @FXML private Label    totalLabel;
+    @FXML private PieChart pieChart;
 
     // ObservableList — "умный" список: TableView слушает его изменения
     private final ObservableList<Asset> assets = FXCollections.observableArrayList();
@@ -43,7 +46,11 @@ public class MainController {
         assets.add(new Asset("Яндекс",   "YDEX",  20, 2800.0, 3150.0));
         assets.add(new Asset("Т-Акции",  "T",     50, 2900.0, 3200.0));
 
+        // Слушатель: автоматически перестраивает диаграмму при изменении списка
+        assets.addListener((ListChangeListener<Asset>) c -> updatePieChart());
+
         updateTotal();
+        updatePieChart();
         statusLabel.setText("Загружено " + assets.size() + " актива");
     }
 
@@ -106,6 +113,21 @@ public class MainController {
         });
     }
 
+    /**
+     * Перестроить PieChart: каждый сектор = доля актива в общей стоимости.
+     * PieChart.Data принимает (название, числовое значение).
+     */
+    private void updatePieChart() {
+        ObservableList<PieChart.Data> data = FXCollections.observableArrayList();
+        for (Asset asset : assets) {
+            data.add(new PieChart.Data(
+                    asset.getTicker(),
+                    asset.getCurrentValue()
+            ));
+        }
+        pieChart.setData(data);
+    }
+
     /** Пересчитать итоговую стоимость портфеля. */
     private void updateTotal() {
         double total = assets.stream().mapToDouble(Asset::getCurrentValue).sum();
@@ -163,6 +185,7 @@ public class MainController {
         dialog.showAndWait().ifPresent(asset -> {
             assets.add(asset);
             updateTotal();
+            updatePieChart();
             statusLabel.setText("Добавлен: " + asset.getName());
         });
     }
@@ -176,6 +199,7 @@ public class MainController {
         }
         assets.remove(selected);
         updateTotal();
+        updatePieChart();
         statusLabel.setText("Удалён: " + selected.getName());
     }
 }
