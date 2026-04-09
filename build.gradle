@@ -23,4 +23,8 @@ javafx {
 
 application {
     mainClass = 'com.example.investment.InvestmentApp'
+    applicationDefaultJvmArgs = [
+        '-Dglass.accessible.force=false',
+        '-Dprism.verbose=true'
+    ]
 }

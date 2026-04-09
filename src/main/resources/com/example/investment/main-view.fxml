@@ -35,7 +35,7 @@
                     <TableColumn fx:id="colCurrentPrice" text="Тек. цена"     prefWidth="100"/>
                     <TableColumn fx:id="colValue"        text="Стоимость"     prefWidth="100"/>
                     <TableColumn fx:id="colGain"         text="Прибыль"       prefWidth="90"/>
-                    <TableColumn fx:id="colGainPercent"  text="%"             prefWidth="70"/>
+                    <TableColumn fx:id="colGainPercent"  text="\%"            prefWidth="70"/>
                 </columns>
                 <padding><Insets top="4"/></padding>
             </TableView>
