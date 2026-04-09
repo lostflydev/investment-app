@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.*?>
+
+<!--
+  Главный экран приложения.
+  BorderPane:
+    - TOP:    заголовок
+    - CENTER: содержимое (будет добавлено на следующих этапах)
+    - BOTTOM: статус-бар
+  fx:controller привязывает FXML к Java-классу MainController.
+-->
+<BorderPane xmlns="http://javafx.com/javafx"
+            xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.example.investment.controller.MainController"
+            style="-fx-background-color: #1e1e2e;">
+
+    <!-- Верхняя панель заголовка -->
+    <top>
+        <HBox style="-fx-background-color: #313244; -fx-padding: 12 20;">
+            <Label text="Инвестиционный портфель"
+                   style="-fx-text-fill: #cdd6f4; -fx-font-size: 20; -fx-font-weight: bold;"/>
+        </HBox>
+    </top>
+
+    <!-- Центральная область — заглушка для следующих этапов -->
+    <center>
+        <Label text="Портфель появится здесь..."
+               style="-fx-text-fill: #6c7086; -fx-font-size: 16;"
+               BorderPane.alignment="CENTER"/>
+    </center>
+
+    <!-- Нижний статус-бар -->
+    <bottom>
+        <HBox style="-fx-background-color: #181825; -fx-padding: 8 20;">
+            <Label fx:id="statusLabel" text="Готово"
+                   style="-fx-text-fill: #a6e3a1; -fx-font-size: 13;"/>
+        </HBox>
+    </bottom>
+</BorderPane>

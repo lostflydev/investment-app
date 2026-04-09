@@ -1,0 +1,28 @@
+plugins {
+    id 'application'
+    id 'java'
+    // Плагин автоматически добавляет JavaFX на classpath и module-path
+    id 'org.openjfx.javafxplugin' version '0.1.0'
+}
+
+group = 'com.example'
+version = '1.0.0'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+repositories {
+    mavenCentral()
+}
+
+javafx {
+    version = '21'
+    // Подключаем нужные модули JavaFX
+    modules = ['javafx.controls', 'javafx.fxml']
+}
+
+application {
+    mainClass = 'com.example.investment.InvestmentApp'
+}
