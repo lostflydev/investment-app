@@ -55,8 +55,15 @@
                     style="-fx-background-color: #89b4fa; -fx-text-fill: #1e1e2e; -fx-font-weight: bold;"/>
             <Button fx:id="btnRemove" text="− Удалить"  onAction="#onRemoveAsset"
                     style="-fx-background-color: #f38ba8; -fx-text-fill: #1e1e2e; -fx-font-weight: bold;"/>
-            <Button text="⟳ Симулировать цены" onAction="#onSimulatePrices"
+            <Button text="⟳ Симулировать" onAction="#onSimulatePrices"
                     style="-fx-background-color: #fab387; -fx-text-fill: #1e1e2e; -fx-font-weight: bold;"/>
+            <Separator orientation="VERTICAL"/>
+            <Button text="📈 Обзор MOEX" onAction="#onOpenMoexBrowser"
+                    style="-fx-background-color: #94e2d5; -fx-text-fill: #1e1e2e; -fx-font-weight: bold;"/>
+            <Button text="🔄 Обновить с биржи" onAction="#onRefreshFromMoex"
+                    style="-fx-background-color: #74c7ec; -fx-text-fill: #1e1e2e; -fx-font-weight: bold;"/>
+            <Button text="⚔ Торговый стакан" onAction="#onOpenOrderBook"
+                    style="-fx-background-color: #cba6f7; -fx-text-fill: #1e1e2e; -fx-font-weight: bold;"/>
             <Region HBox.hgrow="ALWAYS"/>
             <Label fx:id="statusLabel" text="Готово"
                    style="-fx-text-fill: #a6e3a1; -fx-font-size: 13;"/>

@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>REST API в Java</title>
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+<main>
+<section class="page-header">
+<div class="kicker">Курс ООП &middot; investment-app</div>
+<h1>REST API &mdash; методичка</h1>
+<p class="lead">HttpClient, CompletableFuture, Jackson и JavaFX Task &mdash; на примере MOEX ISS.</p>
+</section>
+
+<h2>1. Что такое REST</h2>
+
+<p><strong>REST</strong> (Representational State Transfer) &mdash; стиль построения веб-сервисов. Простые правила: ресурсы с URL, HTTP-методы для действий, JSON в телах.</p>
+
+<pre><code><span class="kw">GET</span>    /iss/securities           <span class="cmt">список всех бумаг</span>
+<span class="kw">GET</span>    /iss/securities/SBER      <span class="cmt">одна бумага</span>
+<span class="kw">POST</span>   /orders                   <span class="cmt">создать заявку</span>
+<span class="kw">PUT</span>    /orders/42                <span class="cmt">обновить заявку</span>
+<span class="kw">DELETE</span> /orders/42                <span class="cmt">отменить</span></code></pre>
+
+<h2>2. HTTP в двух словах</h2>
+
+<p><strong>Запрос:</strong> метод + URL + заголовки + (тело). <strong>Ответ:</strong> статус-код + заголовки + (тело).</p>
+
+<h3>Идемпотентность и безопасность</h3>
+<table>
+<thead><tr><th>Метод</th><th>Безопасный</th><th>Идемпотентный</th></tr></thead>
+<tbody>
+<tr><td>GET</td><td>да</td><td>да</td></tr>
+<tr><td>POST</td><td>нет</td><td>нет</td></tr>
+<tr><td>PUT</td><td>нет</td><td>да</td></tr>
+<tr><td>DELETE</td><td>нет</td><td>да</td></tr>
+</tbody>
+</table>
+
+<div class="tip"><strong>Запомнить:</strong> GET только для чтения.</div>
+
+<h3>Статус-коды</h3>
+<table>
+<thead><tr><th>Диапазон</th><th>Смысл</th><th>Примеры</th></tr></thead>
+<tbody>
+<tr><td>2xx</td><td>Успех</td><td>200 OK, 201 Created</td></tr>
+<tr><td>4xx</td><td>Ошибка клиента</td><td>400, 401, 404, 429</td></tr>
+<tr><td>5xx</td><td>Ошибка сервера</td><td>500, 502, 503</td></tr>
+</tbody>
+</table>
+
+<h2>3. Боевой пример: MOEX ISS</h2>
+
+<p>Московская биржа предоставляет публичный API &mdash; <strong>MOEX ISS</strong>. Авторизация не нужна.</p>
+
+<pre><code><span class="kw">GET</span> https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities.json</code></pre>
+
+<h3>Особенность формата MOEX</h3>
+
+<pre><code>{
+  <span class="str">"securities"</span>: {
+    <span class="str">"columns"</span>: [<span class="str">"SECID"</span>, <span class="str">"SHORTNAME"</span>, <span class="str">"PREVPRICE"</span>],
+    <span class="str">"data"</span>: [
+      [<span class="str">"SBER"</span>, <span class="str">"Sberbank"</span>, <span class="num">310.5</span>],
+      [<span class="str">"GAZP"</span>, <span class="str">"GAZPROM"</span>, <span class="num">168.2</span>]
+    ]
+  }
+}</code></pre>
+
+<h2>4. HttpClient из JDK 11+</h2>
+
+<h3>Синхронный (плохо для UI)</h3>
+<pre><code><span class="kw">HttpClient</span> client = HttpClient.newHttpClient();
+<span class="kw">HttpRequest</span> request = HttpRequest.newBuilder()
+        .uri(URI.create(<span class="str">"https://iss.moex.com/iss/securities.json"</span>))
+        .GET()
+        .build();
+
+<span class="kw">HttpResponse</span>&lt;String&gt; response = client.send(request, HttpResponse.BodyHandlers.ofString());
+System.out.println(response.body());</code></pre>
+
+<p>Метод <code>send</code> блокирует вызывающий поток.</p>
+
+<h3>Асинхронный (правильно)</h3>
+<pre><code><span class="kw">CompletableFuture</span>&lt;String&gt; future = client.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+        .thenApply(HttpResponse::body);
+
+future.thenAccept(body -&gt; System.out.println(body));</code></pre>
+
+<h3>Цепочка CompletableFuture</h3>
+<pre><code>moexClient.getAsync(<span class="str">"/iss/.../securities.json"</span>)
+        .thenApply(parser::parseBlock)
+        .thenApply(<span class="kw">this</span>::mergeWithMarketdata)
+        .thenAccept(<span class="kw">this</span>::renderToTable)
+        .exceptionally(ex -&gt; {
+            showAlert(ex.getMessage());
+            <span class="kw">return null</span>;
+        });</code></pre>
+
+<h2>5. Ошибки и таймауты</h2>
+
+<div class="warning"><strong>Три вещи:</strong>
+<ol>
+<li><strong>Connect timeout и request timeout</strong> &mdash; задавайте явно.</li>
+<li><strong>Проверяйте статус-код</strong>.</li>
+<li><strong>Не декодируйте JSON без try-catch</strong>.</li>
+</ol></div>
+
+<pre><code>HttpClient.newBuilder()
+        .connectTimeout(Duration.ofSeconds(<span class="num">5</span>))
+        .build();
+
+HttpRequest.newBuilder()
+        .uri(...)
+        .timeout(Duration.ofSeconds(<span class="num">10</span>))
+        .build();
+
+<span class="kw">if</span> (response.statusCode() / <span class="num">100</span> != <span class="num">2</span>) {
+    <span class="kw">throw new</span> MyApiException(<span class="str">"HTTP "</span> + response.statusCode());
+}</code></pre>
+
+<h2>6. Парсинг JSON: Jackson</h2>
+
+<pre><code><span class="cmt">// build.gradle</span>
+implementation <span class="str">'com.fasterxml.jackson.core:jackson-databind:2.17.2'</span></code></pre>
+
+<h3>POJO</h3>
+<pre><code><span class="kw">public class</span> MoexResponse {
+    <span class="kw">public</span> Block securities;
+    <span class="kw">public</span> Block marketdata;
+    <span class="kw">public static class</span> Block {
+        <span class="kw">public</span> List&lt;String&gt; columns;
+        <span class="kw">public</span> List&lt;List&lt;Object&gt;&gt; data;
+    }
+}
+
+ObjectMapper mapper = new ObjectMapper();
+MoexResponse resp = mapper.readValue(body, MoexResponse.<span class="kw">class</span>);</code></pre>
+
+<h3>JsonNode</h3>
+<pre><code>JsonNode root = mapper.readTree(body);
+JsonNode data = root.path(<span class="str">"securities"</span>).path(<span class="str">"data"</span>);
+<span class="kw">for</span> (JsonNode row : data) {
+    System.out.println(row.get(<span class="num">0</span>).asText());
+}</code></pre>
+
+<h2>7. UI-поток JavaFX и HTTP</h2>
+
+<p>JavaFX однопоточный относительно UI. Всё, что касается Scene, Node, TableView, может трогать только <strong>JavaFX Application Thread</strong>. Если он занят &mdash; окно замерзает.</p>
+
+<div class="warning"><strong>Антипример</strong>
+<pre><code><span class="kw">@FXML</span>
+<span class="kw">public void</span> onLoad() {
+    String body = httpClient.send(req, ...).body();
+    List&lt;MoexSecurity&gt; data = parse(body);
+    table.setItems(FXCollections.observableArrayList(data));
+}</code></pre>
+Пока идёт запрос (1–10 сек) &mdash; окно не реагирует.
+</div>
+
+<div class="tip"><strong>Правильно &mdash; Task&lt;T&gt;</strong>
+<pre><code><span class="kw">@FXML</span>
+<span class="kw">public void</span> onLoad() {
+    Task&lt;List&lt;MoexSecurity&gt;&gt; task = new Task&lt;&gt;() {
+        <span class="kw">@Override</span>
+        <span class="kw">protected</span> List&lt;MoexSecurity&gt; call() <span class="kw">throws</span> Exception {
+            <span class="kw">return</span> service.loadTopShares(<span class="num">10</span>).get();
+        }
+    };
+    task.setOnRunning   (e -&gt; statusLabel.setText(<span class="str">"Загрузка..."</span>));
+    task.setOnSucceeded (e -&gt; table.setItems(FXCollections.observableArrayList(task.getValue())));
+    task.setOnFailed    (e -&gt; showAlert(task.getException().getMessage()));
+
+    new Thread(task).start();
+}</code></pre>
+Коллбэки setOnXxx FX вызывает в UI-потоке.
+</div>
+
+<h3>Platform.runLater</h3>
+<pre><code>Platform.runLater(() -&gt; statusLabel.setText(<span class="str">"Готово"</span>));</code></pre>
+
+<h2>8. Чек-лист</h2>
+<ul>
+<li>Задан <strong>connect timeout</strong> (5–10 сек).</li>
+<li>Задан <strong>request timeout</strong> на уровне HttpRequest.</li>
+<li>Проверен <strong>статус-код</strong>.</li>
+<li>Парсинг JSON в try/catch.</li>
+<li>Запрос запущен в <strong>Task + new Thread().start()</strong>.</li>
+<li>Обновления UI в setOnSucceeded / setOnFailed или Platform.runLater.</li>
+<li>Кнопка «Загрузить» блокируется на время запроса.</li>
+</ul>
+
+<h2>9. Что читать дальше</h2>
+<ul>
+<li><a href="https://iss.moex.com/iss/reference/">MOEX ISS Reference</a></li>
+<li>JEP 321: HTTP Client</li>
+<li><a href="https://github.com/FasterXML/jackson-databind">Jackson Databind</a></li>
+<li><a href="https://openjfx.io/javadoc/17/javafx.graphics/javafx/concurrent/Task.html">JavaFX Task</a></li>
+</ul>
+
+<footer>investment-app &middot; учебные материалы курса ООП &middot; Java 17 + JavaFX 17</footer>
+
+</main>
+</body>
+</html>

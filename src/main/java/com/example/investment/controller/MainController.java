@@ -1,14 +1,24 @@
 package com.example.investment.controller;
 
+import com.example.investment.InvestmentApp;
 import com.example.investment.model.Asset;
+import com.example.investment.model.MoexSecurity;
+import com.example.investment.service.PriceSimulator;
+import com.example.investment.service.moex.MoexService;
+import javafx.application.Platform;
 import javafx.collections.FXCollections;
+import javafx.collections.ListChangeListener;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
-import com.example.investment.service.PriceSimulator;
-import javafx.collections.ListChangeListener;
+import javafx.fxml.FXMLLoader;
+import javafx.scene.Scene;
 import javafx.scene.chart.PieChart;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
+import javafx.stage.Modality;
+import javafx.stage.Stage;
+
+import java.util.concurrent.CompletableFuture;
 
 /**
  * FXML-контроллер главного экрана.
@@ -37,6 +47,7 @@ public class MainController {
     // ObservableList — "умный" список: TableView слушает его изменения
     private final ObservableList<Asset> assets    = FXCollections.observableArrayList();
     private final PriceSimulator        simulator = new PriceSimulator();
+    private final MoexService           moex      = new MoexService();
 
     @FXML
     public void initialize() {
@@ -221,5 +232,96 @@ public class MainController {
         updateTotal();
         updatePieChart();
         statusLabel.setText("Удалён: " + selected.getName());
+    }
+
+    /**
+     * Открывает окно «Обзор MOEX». Пользователь может загрузить список
+     * бумаг с биржи и добавить выбранные в портфель.
+     */
+    @FXML
+    public void onOpenMoexBrowser() {
+        try {
+            FXMLLoader loader = new FXMLLoader(
+                    InvestmentApp.class.getResource("moex-browser.fxml"));
+            javafx.scene.Parent root = loader.load();
+            MoexBrowserController ctrl = loader.getController();
+            // Callback: когда пользователь нажимает "Добавить выбранные" — мы получаем список
+            ctrl.setOnAddToPortfolio(this::importFromMoex);
+
+            Stage stage = new Stage();
+            stage.setTitle("Обзор биржи MOEX");
+            stage.setScene(new Scene(root));
+            stage.initModality(Modality.NONE); // не блокировать главное окно
+            stage.show();
+        } catch (Exception e) {
+            statusLabel.setText("Не удалось открыть окно: " + e.getMessage());
+        }
+    }
+
+    /** Добавляет бумаги, выбранные в MoexBrowser, в портфель. */
+    private void importFromMoex(java.util.List<MoexSecurity> securities) {
+        for (MoexSecurity s : securities) {
+            double price = s.effectivePrice();
+            assets.add(new Asset(s.getShortName(), s.getTicker(), 10, price, price));
+        }
+        updateTotal();
+        updatePieChart();
+        statusLabel.setText("Добавлено из MOEX: " + securities.size());
+    }
+
+    /**
+     * Обновляет текущие цены всех активов в портфеле реальными данными с MOEX.
+     * Учебный момент: запросы выполняются параллельно через CompletableFuture.allOf —
+     * N активов = N одновременных HTTP-запросов, а не N подряд.
+     */
+    @FXML
+    public void onRefreshFromMoex() {
+        if (assets.isEmpty()) {
+            statusLabel.setText("Нет активов для обновления");
+            return;
+        }
+        statusLabel.setText("Запрашиваю цены с MOEX…");
+
+        CompletableFuture<?>[] futures = assets.stream()
+                .map(asset -> moex.loadCurrentPrice(asset.getTicker())
+                        .thenAccept(price -> Platform.runLater(() -> {
+                            asset.setCurrentPrice(price);
+                            assetsTable.refresh();
+                            updateTotal();
+                            updatePieChart();
+                        }))
+                        .exceptionally(ex -> {
+                            Platform.runLater(() -> statusLabel.setText(
+                                    "Ошибка для " + asset.getTicker() + ": " + ex.getMessage()));
+                            return null;
+                        }))
+                .toArray(CompletableFuture[]::new);
+
+        CompletableFuture.allOf(futures)
+                .whenComplete((v, err) -> Platform.runLater(() -> {
+                    if (err == null) {
+                        statusLabel.setText("Цены обновлены с биржи (" + assets.size() + " бумаг)");
+                    } else {
+                        statusLabel.setText("Обновлено с ошибками: " + err.getMessage());
+                    }
+                }));
+    }
+
+    /** Открывает окно демонстрации race condition. */
+    @FXML
+    public void onOpenOrderBook() {
+        try {
+            FXMLLoader loader = new FXMLLoader(
+                    InvestmentApp.class.getResource("order-book.fxml"));
+            javafx.scene.Parent root = loader.load();
+
+            Stage stage = new Stage();
+            stage.setTitle("Торговый стакан — демо многопоточки");
+            stage.setScene(new Scene(root));
+            stage.initModality(Modality.NONE);
+            stage.show();
+        } catch (Exception e) {
+            statusLabel.setText("Не удалось открыть окно: " + e.getMessage());
+        }
     }
 }

@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Многопоточность в Java</title>
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+<main>
+<section class="page-header">
+<div class="kicker">Курс ООП &middot; investment-app</div>
+<h1>Многопоточность в Java</h1>
+<p class="lead">Race condition и четыре способа его победить &mdash; на примере торгового стакана.</p>
+</section>
+
+<h2>1. Зачем потоки вообще</h2>
+<p>Две причины:</p>
+<ol>
+<li><strong>Отзывчивость UI.</strong> HTTP-запрос на 3 секунды в UI-потоке замораживает окно.</li>
+<li><strong>Использовать все ядра CPU.</strong> Современный ноутбук &mdash; 8 ядер.</li>
+</ol>
+<p>В этой методичке мы фокусируемся на <strong>проблемах</strong>, которые возникают при общем изменяемом состоянии.</p>
+
+<h2>2. Race condition: корень зла</h2>
+
+<p>В пуле 10 акций. Двое клиентов одновременно хотят купить по 7.</p>
+
+<pre><code><span class="kw">int</span> available = <span class="num">10</span>;
+
+<span class="kw">public boolean</span> buy(<span class="kw">int</span> qty) {
+    <span class="kw">if</span> (available &gt;= qty) {   <span class="cmt">// (1) проверка</span>
+        available -= qty;      <span class="cmt">// (2) действие</span>
+        <span class="kw">return true</span>;
+    }
+    <span class="kw">return false</span>;
+}</code></pre>
+
+<p>В однопоточном мире &mdash; работает. В многопоточном &mdash; ломается:</p>
+
+<table>
+<thead><tr><th>Время</th><th>Thread A</th><th>Thread B</th></tr></thead>
+<tbody>
+<tr><td>t=1</td><td>читает available=10</td><td></td></tr>
+<tr><td>t=2</td><td>проверка 10&gt;=7 ok</td><td></td></tr>
+<tr><td>t=3</td><td></td><td>читает available=10</td></tr>
+<tr><td>t=4</td><td></td><td>проверка 10&gt;=7 ok</td></tr>
+<tr><td>t=5</td><td>available -= 7 &rarr; 3</td><td></td></tr>
+<tr><td>t=6</td><td></td><td>available -= 7 &rarr; -4 !!!</td></tr>
+</tbody>
+</table>
+
+<p>Оба клиента прошли проверку, оба купили. Продано <strong>14</strong> акций из <strong>10</strong>. Биржа должна доставить несуществующее &mdash; баг.</p>
+
+<div class="warning"><strong>Почему <code>available -= 7</code> не атомарная:</strong>
+<ol>
+<li>прочитать available в регистр,</li>
+<li>вычесть 7,</li>
+<li>записать обратно в память.</li>
+</ol>
+Между ними может вклиниться другой поток.
+</div>
+
+<h2>3. Видимость vs атомарность</h2>
+
+<ul>
+<li><strong>Атомарность.</strong> Операция прервана посередине. Наш race condition.</li>
+<li><strong>Видимость.</strong> Поток A записал флаг, поток B его не видит никогда &mdash; JIT закешировал чтение в регистре.</li>
+</ul>
+
+<p>Все 4 решения ниже решают обе проблемы сразу &mdash; <code>volatile</code> отдельно не нужен.</p>
+
+<h2>4. Решение 1: synchronized</h2>
+
+<pre><code><span class="kw">public synchronized boolean</span> buy(<span class="kw">int</span> qty) {
+    <span class="kw">if</span> (available &gt;= qty) {
+        available -= qty;
+        <span class="kw">return true</span>;
+    }
+    <span class="kw">return false</span>;
+}</code></pre>
+
+<p>У каждого объекта есть <strong>монитор</strong>. <code>synchronized</code> на методе = захватить монитор this на время вызова.</p>
+
+<h3>Плюсы/минусы</h3>
+<ul>
+<li>Просто. Нельзя забыть отпустить.</li>
+<li>Решает и атомарность, и видимость.</li>
+<li>Блокировка на весь метод &mdash; падает параллелизм.</li>
+<li>Нельзя прервать ожидание, нельзя с таймаутом.</li>
+</ul>
+
+<div class="warning"><strong>Правило:</strong> никогда не синхронизируйтесь на String или boxed Integer &mdash; JVM может их интернировать.</div>
+
+<h2>5. Решение 2: ReentrantLock</h2>
+
+<pre><code><span class="kw">private final</span> ReentrantLock lock = new ReentrantLock(<span class="kw">true</span>);
+
+<span class="kw">public boolean</span> buy(<span class="kw">int</span> qty) {
+    lock.lock();
+    <span class="kw">try</span> {
+        <span class="kw">if</span> (available &gt;= qty) { available -= qty; <span class="kw">return true</span>; }
+        <span class="kw">return false</span>;
+    } <span class="kw">finally</span> {
+        lock.unlock();
+    }
+}</code></pre>
+
+<h3>Чем лучше synchronized</h3>
+<ul>
+<li><strong>Таймаут:</strong> <code>tryLock(500, TimeUnit.MILLISECONDS)</code>.</li>
+<li><strong>Прерываемость:</strong> <code>lockInterruptibly()</code>.</li>
+<li><strong>Fairness:</strong> <code>new ReentrantLock(true)</code> &mdash; FIFO.</li>
+<li>Можно держать lock через границы методов.</li>
+</ul>
+
+<h3>Чем хуже</h3>
+<ul><li>Нельзя забыть unlock. Всегда try/finally.</li><li>Многословнее.</li></ul>
+
+<h2>6. Решение 3: AtomicInteger + CAS</h2>
+
+<p><strong>CAS</strong> (Compare-And-Swap) &mdash; атомарная процессорная инструкция: если текущее значение равно expected &mdash; записать newValue и вернуть true. За одну инструкцию.</p>
+
+<pre><code><span class="kw">private final</span> AtomicInteger available = new AtomicInteger(<span class="num">10</span>);
+
+<span class="kw">public boolean</span> buy(<span class="kw">int</span> qty) {
+    <span class="kw">while</span> (<span class="kw">true</span>) {
+        <span class="kw">int</span> current = available.get();
+        <span class="kw">if</span> (current &lt; qty) <span class="kw">return false</span>;
+        <span class="kw">int</span> next = current - qty;
+        <span class="kw">if</span> (available.compareAndSet(current, next)) <span class="kw">return true</span>;
+        <span class="cmt">// CAS не прошёл. Повтор.</span>
+    }
+}</code></pre>
+
+<p>Это <strong>lock-free</strong>. Ни один поток не усыпляется.</p>
+
+<div class="warning"><strong>Подводные камни:</strong>
+<ul>
+<li><strong>ABA-проблема</strong>: значение A-B-A. CAS не заметит.</li>
+<li><strong>Одно поле</strong>. Для двух &mdash; либо AtomicReference с immutable состоянием, либо lock.</li>
+<li><strong>Голодание</strong> при высокой контенции: CPU крутит цикл.</li>
+</ul></div>
+
+<h2>7. Решение 4: Semaphore</h2>
+
+<p>Семафор &mdash; счётчик разрешений. <code>acquire(n)</code> забрать n, <code>release(n)</code> вернуть.</p>
+
+<pre><code><span class="kw">private final</span> Semaphore permits = new Semaphore(<span class="num">10</span>, <span class="kw">true</span>);
+<span class="kw">private final</span> AtomicInteger sold = new AtomicInteger();
+
+<span class="kw">public boolean</span> buy(<span class="kw">int</span> qty) {
+    <span class="kw">if</span> (!permits.tryAcquire(qty)) <span class="kw">return false</span>;
+    sold.addAndGet(qty);
+    <span class="kw">return true</span>;
+}</code></pre>
+
+<p><strong>Классическое применение:</strong> ограничение параллельных запросов к API, пул соединений, барьер «не больше N загрузок».</p>
+
+<div class="warning"><strong>Важно:</strong> семафор синхронизирует только квоту. Для других полей (sold) нужно отдельно &mdash; либо lock, либо Atomic.</div>
+
+<h2>8. Сравнительная таблица</h2>
+
+<table>
+<thead><tr><th>Примитив</th><th>Сложность</th><th>Производительность</th><th>Гибкость</th><th>Когда</th></tr></thead>
+<tbody>
+<tr><td>synchronized</td><td>низкая</td><td>средняя</td><td>низкая</td><td>Простой случай, один объект</td></tr>
+<tr><td>ReentrantLock</td><td>средняя</td><td>средняя</td><td>высокая</td><td>Нужен таймаут / fairness</td></tr>
+<tr><td>AtomicInteger</td><td>высокая</td><td>высокая</td><td>низкая</td><td>Счётчик / флаг, hot path</td></tr>
+<tr><td>Semaphore</td><td>средняя</td><td>средняя</td><td>средняя</td><td>Квота ресурсов</td></tr>
+</tbody>
+</table>
+
+<h2>9. Пять правил</h2>
+<ol>
+<li><strong>Не делитесь мутабельным состоянием без синхронизации.</strong> Самый простой путь &mdash; immutable.</li>
+<li><strong>Атомарная операция начинается и заканчивается в одной критической секции.</strong></li>
+<li><strong>Не захватывайте lock дольше, чем нужно.</strong> Не делайте IO/HTTP под локом.</li>
+<li><strong>Один объект &mdash; один подход.</strong> Не миксуйте synchronized и AtomicInteger.</li>
+<li><strong>Тестируйте конкурентно.</strong> @RepeatedTest(100) + CountDownLatch.</li>
+</ol>
+
+<h2>10. Deadlock: бонус</h2>
+
+<pre><code><span class="cmt">// Поток A:</span>
+<span class="kw">synchronized</span> (book1) {
+    <span class="kw">synchronized</span> (book2) { ... }
+}
+
+<span class="cmt">// Поток B:</span>
+<span class="kw">synchronized</span> (book2) {
+    <span class="kw">synchronized</span> (book1) { ... }  <span class="cmt">// deadlock</span>
+}</code></pre>
+
+<p>Правила: всегда захватывать локи в одном порядке; лучше &mdash; не больше одного лока; <code>jstack &lt;pid&gt;</code> покажет deadlock.</p>
+
+<h2>11. Что читать дальше</h2>
+<ul>
+<li>Java Concurrency in Practice (Brian Goetz) &mdash; классика.</li>
+<li>java.util.concurrent &mdash; Javadoc пакета.</li>
+<li>JMH &mdash; для бенчмарков.</li>
+<li>Happens-before и Java Memory Model (JSR-133).</li>
+</ul>
+
+<h2>12. Контрольные вопросы</h2>
+<ol>
+<li>Почему <code>available -= 7</code> не атомарная? Из скольких шагов?</li>
+<li>Что гарантирует synchronized кроме взаимного исключения?</li>
+<li>Чем ReentrantLock отличается от synchronized? Два отличия.</li>
+<li>Почему CAS может быть быстрее lock? Когда проигрывает?</li>
+<li>Почему Semaphore сам по себе не решает проблему с обновлением sold?</li>
+<li>Приведите пример deadlock и способ его избежать.</li>
+</ol>
+
+<footer>investment-app &middot; учебные материалы курса ООП &middot; Java 17</footer>
+
+</main>
+</body>
+</html>

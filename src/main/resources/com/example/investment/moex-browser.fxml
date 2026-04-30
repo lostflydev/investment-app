@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+
+<BorderPane xmlns="http://javafx.com/javafx"
+            xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.example.investment.controller.MoexBrowserController"
+            style="-fx-background-color: #1e1e2e;"
+            prefWidth="720" prefHeight="520">
+
+    <top>
+        <HBox style="-fx-background-color: #313244; -fx-padding: 12 20; -fx-spacing: 12;"
+              alignment="CENTER_LEFT">
+            <Label text="Обзор биржи MOEX (TQBR)"
+                   style="-fx-text-fill: #cdd6f4; -fx-font-size: 18; -fx-font-weight: bold;"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button fx:id="btnLoad" text="⤵ Загрузить с MOEX" onAction="#onLoad"
+                    style="-fx-background-color: #89b4fa; -fx-text-fill: #1e1e2e; -fx-font-weight: bold;"/>
+            <ProgressIndicator fx:id="progress" prefWidth="24" prefHeight="24" visible="false"/>
+        </HBox>
+    </top>
+
+    <center>
+        <TableView fx:id="table"
+                   style="-fx-background-color: #1e1e2e; -fx-table-cell-border-color: #313244;">
+            <columns>
+                <TableColumn fx:id="colTicker"    text="Тикер"     prefWidth="100"/>
+                <TableColumn fx:id="colShortName" text="Название"  prefWidth="280"/>
+                <TableColumn fx:id="colLast"      text="LAST"      prefWidth="110"/>
+                <TableColumn fx:id="colPrev"      text="PREVPRICE" prefWidth="110"/>
+            </columns>
+            <padding><Insets top="4"/></padding>
+            <placeholder>
+                <Label text="Нажмите «Загрузить с MOEX»"
+                       style="-fx-text-fill: #6c7086;"/>
+            </placeholder>
+        </TableView>
+    </center>
+
+    <bottom>
+        <HBox style="-fx-background-color: #181825; -fx-padding: 10 20; -fx-spacing: 12;"
+              alignment="CENTER_LEFT">
+            <Label fx:id="statusLabel" text="Готово"
+                   style="-fx-text-fill: #a6e3a1; -fx-font-size: 13;"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button text="➕ Добавить выбранные в портфель" onAction="#onAddSelected"
+                    style="-fx-background-color: #a6e3a1; -fx-text-fill: #1e1e2e; -fx-font-weight: bold;"/>
+        </HBox>
+    </bottom>
+
+</BorderPane>

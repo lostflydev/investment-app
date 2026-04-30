@@ -21,6 +21,23 @@ javafx {
     modules = ['javafx.controls', 'javafx.fxml']
 }
 
+dependencies {
+    // REST: парсинг JSON от MOEX ISS
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.2'
+
+    // Тесты
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    testRuntimeOnly    'org.junit.platform:junit-platform-launcher'
+}
+
+test {
+    useJUnitPlatform()
+    testLogging {
+        events 'passed', 'failed', 'skipped'
+        showStandardStreams = true
+    }
+}
+
 application {
     mainClass = 'com.example.investment.InvestmentApp'
     applicationDefaultJvmArgs = [

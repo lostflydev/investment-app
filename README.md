@@ -1,6 +1,10 @@
 # Инвестиционный Портфель (Investment Portfolio)
 
-Учебное JavaFX-приложение для управления инвестиционным портфелем с симуляцией изменения цен.
+Учебное JavaFX-приложение для курса ООП по Java. Служит живым материалом для пары по двум темам:
+
+1. **REST API** — реальные запросы к Московской бирже (MOEX ISS), парсинг JSON, асинхронные вызовы и UI-поток JavaFX.
+2. **Многопоточность** — демонстрация race condition на примере «два клиента покупают акции» и четырёх способов это починить (`synchronized`, `ReentrantLock`, `AtomicInteger`, `Semaphore`).
+
 
 ## 🚀 Быстрый старт
 
@@ -261,26 +265,47 @@ git log -- src/main/java/.../Asset.java
 
 ```
 investment-app/
-├── build.gradle              # Конфигурация Gradle
-├── settings.gradle           # Настройки проекта
-├── gradle.properties         # Свойства Gradle
-├── gradlew, gradlew.bat      # Gradle wrapper
-├── .gitignore                # Игнорируемые файлы
+├── build.gradle              # Конфигурация Gradle (+ Jackson, JUnit 5)
 ├── README.md                 # Эта документация
+├── docs/                     # Учебные материалы для пары
+│   ├── REST_API.md           # Методичка по REST
+│   ├── CONCURRENCY.md        # Методичка по многопоточке
+│   ├── rest-api.html         # HTML-версия (раздаточный материал)
+│   ├── concurrency.html      # HTML-версия
+│   └── assets/styles.css
 └── src/
-    └── main/
-        ├── java/
-        │   └── com/example/investment/
-        │       ├── InvestmentApp.java      # Точка входа
-        │       ├── model/
-        │       │   └── Asset.java          # Модель актива
-        │       ├── controller/
-        │       │   └── MainController.java # Логика UI
-        │       └── service/
-        │           └── PriceSimulator.java # Бизнес-логика
-        └── resources/
-            └── com/example/investment/
-                └── main-view.fxml          # FXML-разметка
+    ├── main/
+    │   ├── java/com/example/investment/
+    │   │   ├── InvestmentApp.java
+    │   │   ├── model/
+    │   │   │   ├── Asset.java
+    │   │   │   └── MoexSecurity.java          # DTO биржи
+    │   │   ├── controller/
+    │   │   │   ├── MainController.java
+    │   │   │   ├── MoexBrowserController.java # REST UI
+    │   │   │   └── OrderBookController.java   # Race condition UI
+    │   │   ├── service/
+    │   │   │   ├── PriceSimulator.java
+    │   │   │   └── moex/                      # REST слой
+    │   │   │       ├── MoexClient.java        # HttpClient обёртка
+    │   │   │       ├── MoexJsonParser.java    # columns+data → List<Map>
+    │   │   │       └── MoexService.java       # Доменное API
+    │   │   └── concurrency/                   # Race condition + решения
+    │   │       ├── OrderBook.java             # Интерфейс
+    │   │       ├── UnsafeOrderBook.java       # Сломанная версия
+    │   │       ├── SynchronizedOrderBook.java
+    │   │       ├── LockOrderBook.java         # ReentrantLock + tryLock
+    │   │       ├── AtomicOrderBook.java       # CAS
+    │   │       ├── SemaphoreOrderBook.java
+    │   │       ├── TradeClient.java           # Runnable клиент
+    │   │       └── TradeLog.java              # Thread-safe журнал
+    │   └── resources/com/example/investment/
+    │       ├── main-view.fxml
+    │       ├── moex-browser.fxml
+    │       └── order-book.fxml
+    └── test/java/com/example/investment/
+        ├── concurrency/OrderBookConcurrencyTest.java
+        └── service/moex/MoexJsonParserTest.java
 ```
 
 ---
@@ -300,11 +325,42 @@ investment-app/
 ## 📝 Следующие шаги для развития
 
 1. **Добавить сохранение:** JSON/XML/База данных
-2. **Реальный API:** Подключение к биржевому API
-3. **Валидация:** Проверка введённых данных
-4. **Тесты:** Unit-тесты для `PriceSimulator` и `Asset`
+2. **Реальный API:** ✅ сделано — см. `service/moex/` и окно «Обзор MOEX»
+3. **Многопоточность:** ✅ сделано — см. `concurrency/` и окно «Торговый стакан»
+4. **Тесты:** ✅ базовый набор — см. `src/test/java`
 5. **Стили:** Вынести CSS в отдельный файл
 6. **Экспорт:** Выгрузка отчёта в CSV/PDF
+7. **График истории цен:** через `/iss/history/...` — ДЗ студентам
+
+---
+
+## 🎓 Что добавлено для учебной пары
+
+### Обзор MOEX (кнопка «📈 Обзор MOEX»)
+Загружает 10 бумаг с режима TQBR (акции T+2 фондового рынка) через **реальный REST API** MOEX ISS. Показывает работу с:
+
+- `java.net.http.HttpClient` + `CompletableFuture`
+- `Jackson` для парсинга JSON (формат `columns + data`)
+- JavaFX `Task` + `Platform.runLater` — правильная работа с сетью из UI-потока
+
+Файлы: `service/moex/*.java`, `controller/MoexBrowserController.java`, `resources/.../moex-browser.fxml`.
+
+### Торговый стакан (кнопка «⚔ Торговый стакан»)
+Демонстрирует проблему **race condition**: пул 10 акций, два клиента по 7 штук каждый. На реализации `Unsafe` видно overselling (продано 14), на четырёх правильных — всё корректно.
+
+Реализации в пакете `concurrency/`:
+- `UnsafeOrderBook` — намеренно сломанная (check-then-act race)
+- `SynchronizedOrderBook` — `synchronized` метод
+- `LockOrderBook` — `ReentrantLock` (fair) + `tryLock` с таймаутом
+- `AtomicOrderBook` — lock-free CAS-цикл на `AtomicInteger`
+- `SemaphoreOrderBook` — квотирование через `Semaphore`
+
+Тесты `OrderBookConcurrencyTest` с `@RepeatedTest` показывают:
+- `Unsafe` стабильно переторговывает (нужно для демо бага студентам);
+- остальные 4 реализации — всегда `oversold == 0`.
+
+### Обновление цен с биржи (кнопка «🔄 Обновить с биржи»)
+Пример параллельных асинхронных запросов: `CompletableFuture.allOf(...)` — для всех активов портфеля одновременно запускаются HTTP-запросы к MOEX, цены обновляются по мере ответов.
 
 ---
 
